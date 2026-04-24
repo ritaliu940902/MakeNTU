@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>電阻自動分類管理系統｜美客恩踢優</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Noto Sans TC', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            surface: {
+              900: '#0f172a',
+              800: '#1e293b',
+              700: '#334155',
+              600: '#475569',
+              500: '#64748b',
+            },
+            accent: {
+              blue: '#3b82f6',
+              cyan: '#06b6d4',
+              indigo: '#6366f1',
+              slate: '#0f172a',
+            },
+          },
+          boxShadow: {
+            soft: '0 10px 30px rgba(15, 23, 42, 0.25)',
+            glow: '0 0 0 1px rgba(59,130,246,0.25), 0 12px 30px rgba(59,130,246,0.15)',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { font-family: 'Noto Sans TC', sans-serif; }
+    .card-hover { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+    .card-hover:hover { transform: translateY(-3px); box-shadow: 0 14px 40px -12px rgba(0,0,0,0.45); }
+    .btn-press:active { transform: scale(0.97); }
+    .glass {
+      background: rgba(30, 41, 59, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .hero-grid {
+      background-image:
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    .gradient-border {
+      position: relative;
+      overflow: hidden;
+    }
+    .gradient-border::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      padding: 1px;
+      border-radius: 1rem;
+      background: linear-gradient(135deg, rgba(59,130,246,0.7), rgba(6,182,212,0.5), rgba(99,102,241,0.5));
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <div class="absolute inset-0 -z-10 overflow-hidden">
+    <div class="absolute -top-24 -left-20 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl"></div>
+    <div class="absolute top-32 right-0 h-80 w-80 rounded-full bg-blue-500/10 blur-3xl"></div>
+    <div class="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl"></div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <header class="mb-10">
+      <div class="hero-grid gradient-border rounded-3xl glass border border-slate-800 p-6 sm:p-8 shadow-soft">
+        <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div class="max-w-3xl">
+            <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
+              電阻自動分類管理系統
+            </h1>
+            <div class="mt-5 flex flex-wrap gap-3">
+              <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
+                <p class="text-xs text-slate-400">開發團隊</p>
+                <p class="text-base font-bold text-cyan-300">美客恩踢優</p>
+              </div>
+              <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
+                <p class="text-xs text-slate-400">系統特色</p>
+                <p class="text-base font-semibold text-slate-100">分類設定 + 即時庫存管理</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 min-w-[280px]">
+            <div class="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+              <p class="text-xs text-slate-400">已設定區間</p>
+              <p id="hero-range-count" class="mt-1 text-2xl font-bold text-white">0</p>
+            </div>
+            <div class="rounded-2xl border border-slate-700 bg-slate-900/70 p-4">
+              <p class="text-xs text-slate-400">總庫存數量</p>
+              <p id="hero-total-count" class="mt-1 text-2xl font-bold text-cyan-300">0</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Usage Guide -->
+    <section class="mb-8" id="usage-guide">
+      <button type="button" id="toggle-guide" class="w-full flex items-center justify-between gap-3 px-5 py-4 rounded-2xl bg-surface-800/80 border border-surface-600 text-left card-hover btn-press shadow-soft">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-400/20 flex items-center justify-center">
+            <svg class="w-5 h-5 text-accent-cyan" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-base sm:text-lg font-semibold text-slate-100">使用說明</h2>
+            <p class="text-sm text-slate-400">快速了解新增區間、編輯與庫存操作方式</p>
+          </div>
+        </div>
+        <svg id="guide-caret" class="w-5 h-5 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      <div id="guide-content" class="mt-3 rounded-2xl bg-surface-800/60 border border-surface-600 p-5 sm:p-6 text-slate-300 shadow-soft">
+        <ol class="list-decimal pl-5 space-y-2 leading-relaxed">
+          <li>點擊「<span class="font-medium text-accent-blue">新增區間</span>」，輸入下限與上限（單位：Ω），按「儲存」。區間不可重疊，且上限需大於下限。</li>
+          <li>於「即時庫存」中，每個卡片代表一個阻值區間。使用「− / +」按鈕可快速減少或增加庫存數量（不會低於 0）。</li>
+          <li>若需修改區間範圍，按下卡片內的「編輯」；要移除則按「刪除」。</li>
+          <li>所有設定與庫存數量會自動儲存在本機瀏覽器（Local Storage）。重新整理或關閉網頁後再次開啟仍會保留。</li>
+        </ol>
+        <p class="mt-4 text-sm text-slate-400">
+          提示：可在表單中為每個區間選擇不同的電阻種類；若未選擇，會以上方「電阻種類」的目前選擇作為預設。
+        </p>
+      </div>
+    </section>
+
+    <!-- Resistor Type Selector -->
+    <section class="mb-10" id="resistor-type">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-100">電阻種類</h2>
+          <p class="text-sm text-slate-400 mt-1">先選擇常用類型，新增區間時可直接沿用</p>
+        </div>
+        <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
+          <p class="text-xs text-slate-500">目前選擇</p>
+          <p id="current-type" class="font-medium text-slate-200 mt-1">未選擇</p>
+        </div>
+      </div>
+
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <button type="button" data-type="carbon" class="group card-hover relative overflow-hidden rounded-2xl bg-surface-800 border border-surface-600 p-4 text-left btn-press shadow-soft">
+          <img src="./碳膜電阻.jpg" alt="碳膜電阻" class="h-32 w-full object-cover rounded-xl border border-surface-600/60"/>
+          <div class="mt-4 flex items-start justify-between gap-3">
+            <div>
+              <p class="text-slate-100 font-semibold">碳膜電阻</p>
+              <p class="text-slate-500 text-sm">Carbon Film</p>
+            </div>
+            <span class="select-indicator hidden text-cyan-300 text-sm font-medium">已選擇</span>
+          </div>
+        </button>
+
+        <button type="button" data-type="metalfilm" class="group card-hover relative overflow-hidden rounded-2xl bg-surface-800 border border-surface-600 p-4 text-left btn-press shadow-soft">
+          <img src="./金屬膜電阻.jpg" alt="金屬膜電阻" class="h-32 w-full object-cover rounded-xl border border-surface-600/60"/>
+          <div class="mt-4 flex items-start justify-between gap-3">
+            <div>
+              <p class="text-slate-100 font-semibold">金屬膜電阻</p>
+              <p class="text-slate-500 text-sm">Metal Film</p>
+            </div>
+            <span class="select-indicator hidden text-cyan-300 text-sm font-medium">已選擇</span>
+          </div>
+        </button>
+
+        <button type="button" data-type="wirewound" class="group card-hover relative overflow-hidden rounded-2xl bg-surface-800 border border-surface-600 p-4 text-left btn-press shadow-soft">
+          <img src="./繞線電阻2.jpg" alt="繞線電阻" class="h-32 w-full object-cover rounded-xl border border-surface-600/60"/>
+          <div class="mt-4 flex items-start justify-between gap-3">
+            <div>
+              <p class="text-slate-100 font-semibold">繞線電阻</p>
+              <p class="text-slate-500 text-sm">Wirewound</p>
+            </div>
+            <span class="select-indicator hidden text-cyan-300 text-sm font-medium">已選擇</span>
+          </div>
+        </button>
+
+        <button type="button" data-type="smd" class="group card-hover relative overflow-hidden rounded-2xl bg-surface-800 border border-surface-600 p-4 text-left btn-press shadow-soft">
+          <img src="./貼片電阻.jpg" alt="貼片電阻 (SMD)" class="h-32 w-full object-cover rounded-xl border border-surface-600/60"/>
+          <div class="mt-4 flex items-start justify-between gap-3">
+            <div>
+              <p class="text-slate-100 font-semibold">貼片電阻 (SMD)</p>
+              <p class="text-slate-500 text-sm">SMD Resistor</p>
+            </div>
+            <span class="select-indicator hidden text-cyan-300 text-sm font-medium">已選擇</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <!-- Range Settings Section -->
+    <section class="mb-10">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-100">分類範圍設定</h2>
+          <p class="text-sm text-slate-400 mt-1">建立不同阻值區間，供後續庫存管理使用</p>
+        </div>
+        <button
+          id="btn-add-range"
+          class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-accent-blue hover:bg-blue-500 text-white font-medium text-sm transition-colors btn-press shadow-soft"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          新增區間
+        </button>
+      </div>
+
+      <div id="range-form-card" class="hidden mb-6 p-5 rounded-2xl bg-surface-800 border border-surface-600 shadow-soft">
+        <h3 id="form-title" class="text-base font-semibold text-slate-100 mb-4">新增阻值區間</h3>
+        <div class="flex flex-wrap gap-4 items-end">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">下限 (Ω)</label>
+            <input type="number" id="input-min" min="0" step="1" placeholder="0"
+              class="w-28 sm:w-32 px-3 py-2.5 rounded-xl bg-slate-900 border border-surface-600 text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-accent-blue focus:border-transparent font-mono text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">上限 (Ω)</label>
+            <input type="number" id="input-max" min="0" step="1" placeholder="500"
+              class="w-28 sm:w-32 px-3 py-2.5 rounded-xl bg-slate-900 border border-surface-600 text-slate-100 placeholder-slate-500 focus:ring-2 focus:ring-accent-blue focus:border-transparent font-mono text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">電阻種類</label>
+            <select id="input-type" class="w-44 px-3 py-2.5 rounded-xl bg-slate-900 border border-surface-600 text-slate-100 focus:ring-2 focus:ring-accent-blue focus:border-transparent text-sm">
+              <option value="">（依上方選擇為預設）</option>
+              <option value="carbon">碳膜電阻</option>
+              <option value="metalfilm">金屬膜電阻</option>
+              <option value="wirewound">繞線電阻</option>
+              <option value="smd">貼片電阻 (SMD)</option>
+            </select>
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-save-range" class="px-4 py-2.5 rounded-xl bg-accent-blue hover:bg-blue-500 text-white font-medium text-sm transition-colors btn-press">
+              儲存
+            </button>
+            <button id="btn-cancel-range" class="px-4 py-2.5 rounded-xl bg-surface-600 hover:bg-surface-500 text-slate-200 font-medium text-sm transition-colors btn-press">
+              取消
+            </button>
+          </div>
+        </div>
+        <p id="form-error" class="mt-3 text-sm text-rose-400 hidden"></p>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <p class="text-slate-400 text-sm">已設定 <span id="range-count" class="font-semibold text-white">0</span> 個區間</p>
+        <div class="text-sm text-slate-500">團隊：<span class="text-cyan-300 font-medium">美客恩踢優</span></div>
+      </div>
+    </section>
+
+    <!-- Inventory Cards -->
+    <section>
+      <div class="flex items-center justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-xl font-semibold text-slate-100">即時庫存</h2>
+          <p class="text-sm text-slate-400 mt-1">每張卡片代表一個阻值區間，可快速增減數量</p>
+        </div>
+      </div>
+
+      <div id="inventory-cards" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div id="empty-state" class="col-span-full text-center py-14 px-4 rounded-2xl bg-surface-800/50 border border-dashed border-surface-600 text-slate-500">
+          尚無分類區間，請先點擊「新增區間」設定阻值範圍。
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'resistor-ranges';
+    let ranges = [];
+    let editingId = null;
+
+    const formCard = document.getElementById('range-form-card');
+    const formTitle = document.getElementById('form-title');
+    const inputMin = document.getElementById('input-min');
+    const inputMax = document.getElementById('input-max');
+    const formError = document.getElementById('form-error');
+    const rangeCountEl = document.getElementById('range-count');
+    const heroRangeCountEl = document.getElementById('hero-range-count');
+    const heroTotalCountEl = document.getElementById('hero-total-count');
+    const inventoryCards = document.getElementById('inventory-cards');
+    const emptyState = document.getElementById('empty-state');
+    const inputType = document.getElementById('input-type');
+
+    const TYPE_STORAGE_KEY = 'resistor-type';
+    const currentTypeEl = document.getElementById('current-type');
+    const typeButtons = document.querySelectorAll('#resistor-type [data-type]');
+    const typeImages = {
+        carbon: './碳膜電阻.jpg',
+        metalfilm: './金屬膜電阻.jpg',
+        wirewound: './繞線電阻2.jpg',
+        smd: './貼片電阻.jpg'
+      };
+    const typeLabelMap = {
+      carbon: '碳膜電阻',
+      metalfilm: '金屬膜電阻',
+      wirewound: '繞線電阻',
+      smd: '貼片電阻 (SMD)'
+    };
+    let selectedType = null;
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+
+    function setSelectedType(type) {
+      selectedType = type;
+      if (selectedType) {
+        localStorage.setItem(TYPE_STORAGE_KEY, selectedType);
+      } else {
+        localStorage.removeItem(TYPE_STORAGE_KEY);
+      }
+      updateTypeUI();
+      render();
+    }
+
+    function updateTypeUI() {
+      currentTypeEl.textContent = selectedType ? typeLabelMap[selectedType] : '未選擇';
+      typeButtons.forEach(btn => {
+        const isActive = btn.getAttribute('data-type') === selectedType;
+        btn.classList.toggle('ring-2', isActive);
+        btn.classList.toggle('ring-cyan-400', isActive);
+        btn.classList.toggle('shadow-glow', isActive);
+        btn.classList.toggle('border-cyan-400/40', isActive);
+
+        const indicator = btn.querySelector('.select-indicator');
+        if (indicator) indicator.classList.toggle('hidden', !isActive);
+      });
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        ranges = raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        ranges = [];
+      }
+      try {
+        const t = localStorage.getItem(TYPE_STORAGE_KEY);
+        selectedType = t || null;
+      } catch (e) {
+        selectedType = null;
+      }
+      updateTypeUI();
+      render();
+    }
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(ranges));
+      render();
+    }
+
+    function showForm(editItem = null) {
+      editingId = editItem ? editItem.id : null;
+      formTitle.textContent = editItem ? '編輯阻值區間' : '新增阻值區間';
+      inputMin.value = editItem ? editItem.min : '';
+      inputMax.value = editItem ? editItem.max : '';
+      inputType.value = editItem && editItem.type ? editItem.type : '';
+      formError.classList.add('hidden');
+      formError.textContent = '';
+      formCard.classList.remove('hidden');
+    }
+
+    function hideForm() {
+      formCard.classList.add('hidden');
+      editingId = null;
+    }
+
+    function validateRange(min, max) {
+      const minNum = Number(min);
+      const maxNum = Number(max);
+
+      if (min === '' || max === '' || isNaN(minNum) || isNaN(maxNum)) {
+        return '請輸入有效的數字';
+      }
+      if (minNum < 0 || maxNum < 0) return '阻值不可為負數';
+      if (minNum >= maxNum) return '上限必須大於下限';
+
+      const overlap = ranges.some(r => {
+        if (r.id === editingId) return false;
+        return (minNum <= r.max && maxNum >= r.min);
+      });
+
+      if (overlap) return '此區間與現有區間重疊，請調整';
+      return null;
+    }
+
+    function addOrUpdateRange() {
+      const min = inputMin.value.trim();
+      const max = inputMax.value.trim();
+      const err = validateRange(min, max);
+
+      if (err) {
+        formError.textContent = err;
+        formError.classList.remove('hidden');
+        return;
+      }
+
+      const minNum = Number(min);
+      const maxNum = Number(max);
+      const typeValue = inputType.value || selectedType || null;
+
+      if (editingId) {
+        const r = ranges.find(x => x.id === editingId);
+        if (r) {
+          r.min = minNum;
+          r.max = maxNum;
+          r.type = typeValue;
+        }
+      } else {
+        ranges.push({ id: uid(), min: minNum, max: maxNum, count: 0, type: typeValue });
+      }
+
+      ranges.sort((a, b) => a.min - b.min);
+      save();
+      hideForm();
+    }
+
+    function deleteRange(id) {
+      if (!confirm('確定要刪除此區間嗎？')) return;
+      ranges = ranges.filter(r => r.id !== id);
+      save();
+    }
+
+    function adjustCount(id, delta) {
+      const r = ranges.find(x => x.id === id);
+      if (!r) return;
+      r.count = Math.max(0, r.count + delta);
+      save();
+    }
+
+    function getTotalCount() {
+      return ranges.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
+    }
+
+    function render() {
+      rangeCountEl.textContent = ranges.length;
+      heroRangeCountEl.textContent = ranges.length;
+      heroTotalCountEl.textContent = getTotalCount();
+
+      const existingCards = inventoryCards.querySelectorAll('[data-range-id]');
+      existingCards.forEach(el => el.remove());
+
+      if (ranges.length === 0) {
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      ranges.forEach(r => {
+        const card = document.createElement('div');
+        card.setAttribute('data-range-id', r.id);
+        card.className = 'card-hover rounded-2xl bg-surface-800 border border-surface-600 p-5 shadow-soft';
+
+        card.innerHTML = `
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+              ${r.type ? `<img src="${typeImages[r.type]}" alt="${typeLabelMap[r.type]}" class="hidden sm:block w-14 h-14 object-cover rounded-xl border border-surface-600/60 shrink-0"/>` : ''}
+              <div class="min-w-0">
+                <p class="text-slate-400 text-sm font-medium">阻值區間</p>
+                <p class="font-mono text-lg font-semibold text-slate-100 mt-0.5 break-words">${r.min} – ${r.max} Ω</p>
+                <p class="text-xs text-slate-500 mt-1">${r.type ? typeLabelMap[r.type] : '尚未指定電阻種類'}</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 rounded-xl bg-slate-900/70 border border-slate-700 px-2 py-2">
+              <button type="button" aria-label="減少 1" data-action="minus" class="w-10 h-10 rounded-lg bg-surface-600 hover:bg-surface-500 text-slate-100 font-bold flex items-center justify-center transition-colors btn-press">−</button>
+              <span class="min-w-[3.5rem] text-center font-mono text-2xl font-bold text-cyan-300">${r.count}</span>
+              <button type="button" aria-label="增加 1" data-action="plus" class="w-10 h-10 rounded-lg bg-accent-blue hover:bg-blue-500 text-white font-bold flex items-center justify-center transition-colors btn-press">+</button>
+            </div>
+          </div>
+
+          <div class="mt-4 flex items-center justify-between gap-3">
+            <p class="text-slate-500 text-sm">庫存數量管理</p>
+            <div class="flex gap-2">
+              <button type="button" data-action="edit" class="text-sm px-3 py-2 rounded-xl bg-surface-600 hover:bg-surface-500 text-slate-200 transition-colors btn-press">編輯</button>
+              <button type="button" data-action="delete" class="text-sm px-3 py-2 rounded-xl bg-rose-900/50 hover:bg-rose-800/60 text-rose-300 transition-colors btn-press">刪除</button>
+            </div>
+          </div>
+        `;
+
+        card.querySelector('[data-action="minus"]').addEventListener('click', () => adjustCount(r.id, -1));
+        card.querySelector('[data-action="plus"]').addEventListener('click', () => adjustCount(r.id, 1));
+        card.querySelector('[data-action="edit"]').addEventListener('click', () => showForm(r));
+        card.querySelector('[data-action="delete"]').addEventListener('click', () => deleteRange(r.id));
+
+        inventoryCards.appendChild(card);
+      });
+    }
+
+    document.getElementById('btn-add-range').addEventListener('click', () => showForm());
+    document.getElementById('btn-save-range').addEventListener('click', addOrUpdateRange);
+    document.getElementById('btn-cancel-range').addEventListener('click', hideForm);
+
+    typeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const t = btn.getAttribute('data-type');
+        setSelectedType(t);
+      });
+    });
+
+    const toggleGuideBtn = document.getElementById('toggle-guide');
+    const guideContent = document.getElementById('guide-content');
+    const guideCaret = document.getElementById('guide-caret');
+    let guideOpen = true;
+
+    function setGuide(open) {
+      guideOpen = open;
+      if (guideOpen) {
+        guideContent.classList.remove('hidden');
+        guideCaret.style.transform = 'rotate(0deg)';
+      } else {
+        guideContent.classList.add('hidden');
+        guideCaret.style.transform = 'rotate(-90deg)';
+      }
+    }
+
+    setGuide(true);
+    toggleGuideBtn.addEventListener('click', () => setGuide(!guideOpen));
+
+    load();
+  </script>
+</body>
+</html>
