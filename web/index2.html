@@ -139,8 +139,9 @@
               </svg>
             </div>
             <div>
-              <h2 class="text-lg font-semibold text-slate-100">裝置連線（Pico / ESP32）</h2>
-              <p class="text-sm text-slate-400 mt-1">透過 USB 序列埠接收量測到的電阻值，自動歸入對應區間並 +1</p>
+              <h2 class="text-lg font-semibold text-slate-100">裝置讀取（Flask / COM5）</h2>
+              <p class="text-sm text-slate-400 mt-1">Python 從 USB 序列埠讀取電阻值，網頁自動顯示並歸入對應區間 +1。</p>
+              <p id="conn-detail" class="text-xs text-slate-500 mt-1">等待 Flask server 讀取序列埠。</p>
             </div>
           </div>
 
@@ -149,20 +150,20 @@
               <span id="conn-dot" class="inline-block w-2.5 h-2.5 rounded-full bg-slate-500"></span>
               <span id="conn-text" class="text-slate-300">未連線</span>
             </div>
-            <button id="btn-connect" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm transition-colors btn-press shadow-soft">
+            <button id="btn-connect" style="display:none" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm transition-colors btn-press shadow-soft">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
               連接裝置
             </button>
-            <button id="btn-disconnect" class="hidden inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-medium text-sm transition-colors btn-press">
+            <button id="btn-disconnect" style="display:none" class="hidden inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-medium text-sm transition-colors btn-press">
               中斷
             </button>
           </div>
         </div>
 
-        <!-- Last reading + manual test -->
-        <div class="mt-5 grid gap-4 sm:grid-cols-3">
+        <!-- Last reading -->
+        <div class="mt-5 grid gap-4 sm:grid-cols-2">
           <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
             <p class="text-xs text-slate-400">最近讀值</p>
             <p id="last-reading" class="mt-1 font-mono text-xl font-semibold text-cyan-300">— Ω</p>
@@ -171,7 +172,7 @@
             <p class="text-xs text-slate-400">最近歸類</p>
             <p id="last-bucket" class="mt-1 text-sm font-medium text-slate-200">—</p>
           </div>
-          <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
+          <div style="display:none" class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
             <p class="text-xs text-slate-400">手動測試（不需裝置）</p>
             <div class="mt-1 flex gap-2">
               <input id="manual-value" type="number" step="0.1" min="0" placeholder="輸入電阻值 Ω"
@@ -192,7 +193,7 @@
         </div>
 
         <!-- Serial log -->
-        <details class="mt-4 group">
+        <details style="display:none" class="mt-4 group">
           <summary class="cursor-pointer text-sm text-slate-400 hover:text-slate-200 select-none">
             序列埠日誌（點擊展開）
           </summary>
@@ -645,6 +646,7 @@
     const btnDisconnect = document.getElementById('btn-disconnect');
     const connDot = document.getElementById('conn-dot');
     const connText = document.getElementById('conn-text');
+    const connDetail = document.getElementById('conn-detail');
     const lastReadingEl = document.getElementById('last-reading');
     const lastBucketEl = document.getElementById('last-bucket');
     const serialLog = document.getElementById('serial-log');
@@ -660,7 +662,6 @@
     const lastBucketHit = new Map(); // rangeId -> timestamp
 
     if (!('serial' in navigator)) {
-      webserialWarning.classList.remove('hidden');
       btnConnect.disabled = true;
       btnConnect.classList.add('opacity-50', 'cursor-not-allowed');
     }
@@ -832,9 +833,9 @@
       try {
         setConnUI('connecting');
         port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 115200 });
+        await port.open({ baudRate: 9600 });
         setConnUI('connected');
-        logLine('已開啟序列埠（baudRate=115200）', 'text-emerald-300');
+        logLine('已開啟序列埠（baudRate=9600）', 'text-emerald-300');
         keepReading = true;
 
         // fatal:false → 遇到無效 UTF-8 位元組不會丟出例外，會用 U+FFFD 取代，
@@ -889,6 +890,42 @@
     manualValueInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') btnManualAdd.click();
     });
+
+    let lastServerSeq = null;
+
+    async function pollResistanceFromServer() {
+      try {
+        const response = await fetch('/get_resistance', { cache: 'no-store' });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (data.error) {
+          setConnUI('error');
+          connDetail.textContent = data.error;
+          return;
+        }
+
+        setConnUI('connected');
+        connDetail.textContent = '正在透過 Flask 讀取 COM5。';
+        const raw = String(data.value ?? '').trim();
+        const seq = Number(data.seq ?? 0);
+        if (!raw || raw === '---' || seq === lastServerSeq) return;
+
+        lastServerSeq = seq;
+        const ohm = parseResistance(raw);
+        if (ohm !== null) {
+          processResistance(ohm, 'flask');
+        }
+      } catch (_) {
+        setConnUI('error');
+        connDetail.textContent = '無法連線到 Flask server，請確認目前是用 http://127.0.0.1:5000/ 開啟。';
+      }
+    }
+
+    if (location.protocol === 'http:' || location.protocol === 'https:') {
+      pollResistanceFromServer();
+      setInterval(pollResistanceFromServer, 500);
+    }
 
     setConnUI('idle');
   </script>

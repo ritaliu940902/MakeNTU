@@ -81,17 +81,8 @@ void loop() {
       usedResistor = "220Ω";
   }
 
-  // 將結果印出到序列埠監控視窗
-  Serial.print("參考電阻檔位: ");
-  Serial.print(usedResistor);
-  Serial.print("\t 待測阻值: ");
-  
-  if (finalRx < 0) {
-    Serial.println("開路 (未放入電阻)");
-  } else {
-    Serial.print(finalRx);
-    Serial.println(" Ω");
-  }
+  // 測量完成，將結果印出來看
+  Serial.println(finalRx);
 
   delay(500); // 每 0.5 秒更新一次數據
 }
