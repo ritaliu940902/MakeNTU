@@ -11,7 +11,7 @@ WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 ASSET_DIR = WEB_DIR / "assets"
 
 # Arduino currently uses Serial.begin(9600) in firmware/Arduino_measure/src/main.cpp.
-SERIAL_PORT = os.environ.get("SERIAL_PORT", "COM5")
+SERIAL_PORT = os.environ.get("SERIAL_PORT", "/dev/ttyUSB0")
 SERIAL_BAUD = int(os.environ.get("SERIAL_BAUD", "9600"))
 
 ser = None
@@ -73,4 +73,5 @@ def web_file(filename):
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=5000, use_reloader=False)
+    port = int(os.environ.get("PORT", os.environ.get("WEB_PORT", "5000")))
+    app.run(debug=False, port=port, use_reloader=False)
