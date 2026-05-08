@@ -1,4 +1,6 @@
 import os
+import argparse
+import json
 import cv2 as cv
 import numpy as np
 from dataclasses import dataclass
@@ -839,6 +841,9 @@ def analyze_resistor_image(image_path: str, save_path: str = "annotated_result.j
     image = cv.imread(image_path)
     if image is None:
         raise FileNotFoundError(f"讀不到圖片：{image_path}")
+    save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
+    os.makedirs(save_dir, exist_ok=True)
+
     roi, roi_mask, roi_info = detect_resistor_roi(image)
     body_box, body_mask = detect_body_box(roi, roi_mask)
     band_boxes, band_colors, peaks, signal, band_mask = pick_four_bands(roi, body_box, body_mask)
@@ -863,7 +868,6 @@ def analyze_resistor_image(image_path: str, save_path: str = "annotated_result.j
     cv.putText(debug_img, img_message, (10,112), FONT, 0.5, status_color, 1, cv.LINE_AA)
     cv.imwrite(save_path, debug_img)
 
-    save_dir = os.path.dirname(save_path) if os.path.dirname(save_path) else "."
     base = os.path.splitext(os.path.basename(save_path))[0]
     cv.imwrite(os.path.join(save_dir, f"{base}_roi.jpg"), roi)
     cv.imwrite(os.path.join(save_dir, f"{base}_body_mask.jpg"), body_mask)
@@ -875,7 +879,33 @@ def analyze_resistor_image(image_path: str, save_path: str = "annotated_result.j
         "tolerance": tolerance, "direction": direction, "saved_image": save_path, "roi_info": roi_info,
     }
 
-if __name__ == "__main__":
+
+def result_for_cli(result: dict) -> dict:
+    """Return a compact result without large image arrays so it can be printed as JSON."""
+    compact = dict(result)
+    roi_info = dict(compact.get("roi_info", {}))
+    roi_info.pop("rotated_image", None)
+    compact["roi_info"] = roi_info
+    return json_safe(compact)
+
+
+def json_safe(value):
+    if isinstance(value, dict):
+        return {str(k): json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(v) for v in value]
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
+
+
+def run_default_tests():
     test_paths = ["test56.jpg", "test56_2.jpg", "test390.jpg", "testresistor.jpg"]
     for image_path in test_paths:
         if not os.path.exists(image_path):
@@ -889,3 +919,37 @@ if __name__ == "__main__":
                 print(f"{k}: (略，內含 rotated_image)")
             else:
                 print(f"{k}: {v}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Detect resistor color bands from a JPG/PNG image.")
+    parser.add_argument("image", nargs="?", help="Path to the resistor image.")
+    parser.add_argument(
+        "-o",
+        "--output",
+        default="annotated_result.jpg",
+        help="Path for the annotated debug image. Default: annotated_result.jpg",
+    )
+    parser.add_argument("--json", action="store_true", help="Print a machine-readable JSON result.")
+    args = parser.parse_args()
+
+    if not args.image:
+        run_default_tests()
+        return
+
+    result = analyze_resistor_image(args.image, args.output, strict=False)
+    compact = result_for_cli(result)
+    if args.json:
+        print(json.dumps(compact, ensure_ascii=False, indent=2))
+    else:
+        print(f"Image: {args.image}")
+        print(f"ok: {compact['ok']}")
+        print(f"message: {compact['message']}")
+        print(f"band_colors: {compact['band_colors']}")
+        print(f"resistance: {compact['resistance_text']}")
+        print(f"tolerance: {compact['tolerance']}")
+        print(f"saved_image: {compact['saved_image']}")
+
+
+if __name__ == "__main__":
+    main()
