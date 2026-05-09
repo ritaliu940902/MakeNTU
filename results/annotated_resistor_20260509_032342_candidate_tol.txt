@@ -1,0 +1,3 @@
+candidate 01: peak=52, D=VIOLET, M=VIOLET, T=GOLD, source=color
+candidate 02: peak=1475, D=VIOLET, M=VIOLET, T=UNKNOWN, source=color
+candidate 03: peak=1669, D=WHITE, M=WHITE, T=UNKNOWN, source=white

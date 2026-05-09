@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from resistor_color_detector_v4 import analyze_resistor_image, result_for_cli
+from rcd_cancrop_v3 import analyze_resistor_image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +40,7 @@ def capture_with_picam2(output_path: Path, width: int, height: int, warmup: floa
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Take a JPG with Raspberry Pi Camera Module v2 and run resistor color detection."
+        description="Take a JPG with Raspberry Pi Camera Module v2 and run resistor color detection using rcd_cancrop_v3."
     )
     parser.add_argument(
         "--image",
@@ -69,23 +69,24 @@ def main() -> int:
     if not output_path.is_absolute():
         output_path = PROJECT_ROOT / output_path
 
-    capture_with_picam2(image_path, args.width, args.height, args.warmup)
+    if args.image is None:
+        capture_with_picam2(image_path, args.width, args.height, args.warmup)
     result = analyze_resistor_image(str(image_path), str(output_path), strict=False)
-    compact = result_for_cli(result)
-    compact["captured_image"] = str(image_path)
+    result["captured_image"] = str(image_path)
+    result["saved_image"] = result.get("result_debug_image")
 
     if args.json:
-        print(json.dumps(compact, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
-        print(f"captured_image: {image_path}")
-        print(f"ok: {compact['ok']}")
-        print(f"message: {compact['message']}")
-        print(f"band_colors: {compact['band_colors']}")
-        print(f"resistance: {compact['resistance_text']}")
-        print(f"tolerance: {compact['tolerance']}")
-        print(f"saved_image: {compact['saved_image']}")
+        print(f"captured_image: {result['captured_image']}")
+        print(f"ok: {result['ok']}")
+        print(f"message: {result['message']}")
+        print(f"band_colors: {result['band_colors']}")
+        print(f"resistance: {result['resistance_text']}")
+        print(f"tolerance: {result['tolerance']}")
+        print(f"saved_image: {result['saved_image']}")
 
-    return 0 if compact["ok"] else 2
+    return 0 if result["ok"] else 2
 
 
 if __name__ == "__main__":

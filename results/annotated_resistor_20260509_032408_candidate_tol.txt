@@ -1,0 +1,6 @@
+candidate 01: peak=198, D=WHITE, M=WHITE, T=UNKNOWN, source=white
+candidate 02: peak=885, D=BROWN, M=BROWN, T=UNKNOWN, source=color
+candidate 03: peak=1135, D=BROWN, M=BROWN, T=UNKNOWN, source=color
+candidate 04: peak=1240, D=BROWN, M=BROWN, T=UNKNOWN, source=color
+candidate 05: peak=1422, D=BLUE, M=BLUE, T=UNKNOWN, source=color
+candidate 06: peak=1741, D=BROWN, M=BROWN, T=UNKNOWN, source=color

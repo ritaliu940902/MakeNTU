@@ -150,6 +150,15 @@
               <span id="conn-dot" class="inline-block w-2.5 h-2.5 rounded-full bg-slate-500"></span>
               <span id="conn-text" class="text-slate-300">未連線</span>
             </div>
+            <button id="btn-run-cycle" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-white font-medium text-sm transition-colors btn-press shadow-soft">
+              跑一輪
+            </button>
+            <button id="btn-auto-start" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-medium text-sm transition-colors btn-press shadow-soft">
+              啟動自動
+            </button>
+            <button id="btn-auto-stop" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-medium text-sm transition-colors btn-press">
+              停止
+            </button>
             <button id="btn-connect" style="display:none" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm transition-colors btn-press shadow-soft">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -172,6 +181,14 @@
             <p class="text-xs text-slate-400">最近歸類</p>
             <p id="last-bucket" class="mt-1 text-sm font-medium text-slate-200">—</p>
           </div>
+          <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
+            <p class="text-xs text-slate-400">自動流程狀態</p>
+            <p id="cycle-state" class="mt-1 text-sm font-medium text-slate-200">—</p>
+          </div>
+          <div class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
+            <p class="text-xs text-slate-400">最近影像 / 量測</p>
+            <p id="cycle-latest" class="mt-1 font-mono text-sm text-slate-200">—</p>
+          </div>
           <div style="display:none" class="rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3">
             <p class="text-xs text-slate-400">手動測試（不需裝置）</p>
             <div class="mt-1 flex gap-2">
@@ -193,9 +210,9 @@
         </div>
 
         <!-- Serial log -->
-        <details style="display:none" class="mt-4 group">
+        <details class="mt-4 group" open>
           <summary class="cursor-pointer text-sm text-slate-400 hover:text-slate-200 select-none">
-            序列埠日誌（點擊展開）
+            自動流程日誌（點擊展開）
           </summary>
           <div id="serial-log" class="mt-2 h-40 overflow-auto rounded-xl bg-slate-950/80 border border-slate-800 p-3 font-mono text-xs text-slate-400 leading-relaxed"></div>
         </details>
@@ -644,11 +661,16 @@
     ===================================================== */
     const btnConnect = document.getElementById('btn-connect');
     const btnDisconnect = document.getElementById('btn-disconnect');
+    const btnRunCycle = document.getElementById('btn-run-cycle');
+    const btnAutoStart = document.getElementById('btn-auto-start');
+    const btnAutoStop = document.getElementById('btn-auto-stop');
     const connDot = document.getElementById('conn-dot');
     const connText = document.getElementById('conn-text');
     const connDetail = document.getElementById('conn-detail');
     const lastReadingEl = document.getElementById('last-reading');
     const lastBucketEl = document.getElementById('last-bucket');
+    const cycleStateEl = document.getElementById('cycle-state');
+    const cycleLatestEl = document.getElementById('cycle-latest');
     const serialLog = document.getElementById('serial-log');
     const webserialWarning = document.getElementById('webserial-warning');
     const cooldownInput = document.getElementById('cooldown-input');
@@ -891,6 +913,94 @@
       if (e.key === 'Enter') btnManualAdd.click();
     });
 
+    const seenServerEvents = new Set();
+
+    async function postJson(url) {
+      const response = await fetch(url, { method: 'POST', cache: 'no-store' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      return data;
+    }
+
+    btnRunCycle.addEventListener('click', async () => {
+      try {
+        await postJson('/api/cycle');
+        logLine('已要求執行一輪分類', 'text-cyan-300');
+      } catch (err) {
+        logLine(`無法執行一輪：${err.message || err}`, 'text-rose-300');
+      }
+    });
+
+    btnAutoStart.addEventListener('click', async () => {
+      try {
+        await postJson('/api/auto/start');
+        logLine('自動模式已啟動', 'text-emerald-300');
+      } catch (err) {
+        logLine(`無法啟動自動模式：${err.message || err}`, 'text-rose-300');
+      }
+    });
+
+    btnAutoStop.addEventListener('click', async () => {
+      try {
+        await postJson('/api/auto/stop');
+        logLine('已送出停止自動模式', 'text-amber-300');
+      } catch (err) {
+        logLine(`無法停止自動模式：${err.message || err}`, 'text-rose-300');
+      }
+    });
+
+    function renderCycleStatus(data) {
+      const mode = data.mode || 'idle';
+      const msg = data.message || '—';
+      cycleStateEl.textContent = `${mode}｜${msg}`;
+
+      if (data.error) {
+        cycleStateEl.className = 'mt-1 text-sm font-medium text-rose-300';
+        connDetail.textContent = data.error;
+      } else if (data.running || data.auto_enabled) {
+        cycleStateEl.className = 'mt-1 text-sm font-medium text-emerald-300';
+        connDetail.textContent = `Flask 總控中：${data.serial_port || ''} @ ${data.serial_baud || 9600}`;
+      } else {
+        cycleStateEl.className = 'mt-1 text-sm font-medium text-slate-200';
+      }
+
+      const latest = data.latest;
+      if (latest) {
+        const vision = latest.vision_ohm == null ? '—' : formatOhm(Number(latest.vision_ohm));
+        const measured = latest.measured_ohm == null ? '—' : formatOhm(Number(latest.measured_ohm));
+        const action = latest.action || '—';
+        const box = latest.box == null ? '' : `, box ${latest.box}`;
+        cycleLatestEl.textContent = `V:${vision} / M:${measured} / ${action}${box}`;
+      }
+
+      btnRunCycle.disabled = Boolean(data.running);
+      btnAutoStart.disabled = Boolean(data.auto_enabled);
+      btnAutoStop.disabled = !data.auto_enabled && !data.running;
+      [btnRunCycle, btnAutoStart, btnAutoStop].forEach(btn => {
+        btn.classList.toggle('opacity-50', btn.disabled);
+        btn.classList.toggle('cursor-not-allowed', btn.disabled);
+      });
+
+      (data.events || []).forEach(line => {
+        if (seenServerEvents.has(line)) return;
+        seenServerEvents.add(line);
+        logLine(line, line.includes('error') ? 'text-rose-300' : 'text-slate-400');
+      });
+    }
+
+    async function pollCycleStatus() {
+      try {
+        const response = await fetch('/api/status', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json();
+        renderCycleStatus(data);
+      } catch (_) {
+        // pollResistanceFromServer already updates the connection error text.
+      }
+    }
+
     let lastServerSeq = null;
 
     async function pollResistanceFromServer() {
@@ -906,7 +1016,7 @@
         }
 
         setConnUI('connected');
-        connDetail.textContent = '正在透過 Flask 讀取 COM5。';
+        connDetail.textContent = '正在透過 Flask 監控自動分類流程。';
         const raw = String(data.value ?? '').trim();
         const seq = Number(data.seq ?? 0);
         if (!raw || raw === '---' || seq === lastServerSeq) return;
@@ -923,7 +1033,9 @@
     }
 
     if (location.protocol === 'http:' || location.protocol === 'https:') {
+      pollCycleStatus();
       pollResistanceFromServer();
+      setInterval(pollCycleStatus, 1000);
       setInterval(pollResistanceFromServer, 500);
     }
 
